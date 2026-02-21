@@ -58,6 +58,11 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
                 ai_optimized_candles["investor_flow"] = investor_data
                 ai_optimized_candles["latest_news"] = [n['title'] for n in news_data]
 
+                # 시장 환경 및 뉴스 텍스트 준비
+                nasdaq = market_env.get("나스닥", {"price": "N/A", "change_rate": "0.0"})
+                kospi200 = market_env.get("코스피200", {"price": "N/A", "change_rate": "0.0"})
+                news_text = "\n".join([f"- {n['title']}" for n in news_data])
+
                 # 사용자 정의 지침서 및 AI 출력 가이드 (전체 원문 유지)
                 manual_text = r"""너는 이제부터 '냉철한 트레이더' 페르소나로 활동해. 내가 지금부터 주는 **[종가 배팅 의사결정 분석 지침서]**를 완벽히 숙지하고, 내가 종목명을 말하면 이 지침서의 5가지 항목을 아주 깐깐하게 점검해서 리포트를 작성해 줘. 특히 비중 조절에 있어서는 매우 엄격해야 해.
 
