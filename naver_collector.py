@@ -60,7 +60,8 @@ class NaverFinanceCollector:
         try:
             url = f"https://finance.naver.com/item/frgn.naver?code={stock_code}"
             res = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(res.content.decode('euc-kr', 'replace'), 'html.parser')
+            if res.encoding == 'ISO-8859-1': res.encoding = res.apparent_encoding
+            soup = BeautifulSoup(res.text, 'html.parser')
             rows = soup.select("table.type2 tr")
             for row in rows:
                 cols = row.select("td")
@@ -74,7 +75,8 @@ class NaverFinanceCollector:
         try:
             url = f"https://finance.naver.com/item/sise.naver?code={stock_code}"
             res = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(res.content.decode('euc-kr', 'replace'), 'html.parser')
+            if res.encoding == 'ISO-8859-1': res.encoding = res.apparent_encoding
+            soup = BeautifulSoup(res.text, 'html.parser')
             prog_label = soup.find(string=re.compile("프로그램"))
             if prog_label:
                 prog_val = prog_label.find_parent("tr").select("td")[-1]
@@ -87,11 +89,11 @@ class NaverFinanceCollector:
         """종목 관련 뉴스 스크래핑 (최신 5건)"""
         from bs4 import BeautifulSoup
         news_list = []
-        # 메인 페이지의 뉴스 영역이 더 안정적임
         url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
         try:
             res = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(res.content.decode('euc-kr', 'replace'), 'html.parser')
+            if res.encoding == 'ISO-8859-1': res.encoding = res.apparent_encoding
+            soup = BeautifulSoup(res.text, 'html.parser')
             # '뉴스' 섹션 내의 링크들 탐색
             news_area = soup.find('div', class_='section news_area')
             if news_area:
@@ -102,8 +104,6 @@ class NaverFinanceCollector:
                             "title": title,
                             "link": "https://finance.naver.com" + a['href']
                         })
-            
-            # 만약 못 찾았다면 대안 셀렉터 (특징주 등)
             if not news_list:
                 for a in soup.select('div.news_section ul li a'):
                     title = a.text.strip()
