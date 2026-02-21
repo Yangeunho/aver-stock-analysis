@@ -60,7 +60,7 @@ class NaverFinanceCollector:
         try:
             url = f"https://finance.naver.com/item/frgn.naver?code={stock_code}"
             res = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(res.text, 'html.parser')
+            soup = BeautifulSoup(res.content.decode('euc-kr', 'replace'), 'html.parser')
             rows = soup.select("table.type2 tr")
             for row in rows:
                 cols = row.select("td")
@@ -74,7 +74,7 @@ class NaverFinanceCollector:
         try:
             url = f"https://finance.naver.com/item/sise.naver?code={stock_code}"
             res = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(res.text, 'html.parser')
+            soup = BeautifulSoup(res.content.decode('euc-kr', 'replace'), 'html.parser')
             prog_label = soup.find(string=re.compile("프로그램"))
             if prog_label:
                 prog_val = prog_label.find_parent("tr").select("td")[-1]
@@ -91,8 +91,7 @@ class NaverFinanceCollector:
         url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
         try:
             res = requests.get(url, headers=self.headers)
-            res.encoding = 'euc-kr'
-            soup = BeautifulSoup(res.text, 'html.parser')
+            soup = BeautifulSoup(res.content.decode('euc-kr', 'replace'), 'html.parser')
             # '뉴스' 섹션 내의 링크들 탐색
             news_area = soup.find('div', class_='section news_area')
             if news_area:
