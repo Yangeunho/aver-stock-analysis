@@ -3,7 +3,7 @@ import json
 import os
 from naver_collector import NaverFinanceCollector
 from ai_formatter import AiFormatter
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # 페이지 설정
 st.set_page_config(page_title="주도주 종배 분석기", page_icon="📈", layout="centered")
@@ -141,7 +141,8 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
                 st.text_area("보고서 전문 (제미나이 복사용)", report_text, height=250)
 
                 # 파일 다운로드 버튼 (핸드폰 첨부용)
-                file_name = f"analysis_{stock_code}_{datetime.now().strftime('%H%M%S')}.txt"
+                kst = timezone(timedelta(hours=9))
+                file_name = f"analysis_{stock_code}_{datetime.now(kst).strftime('%H%M%S')}.txt"
                 st.download_button(
                     label="💾 제미나이 첨부용 파일 다운로드",
                     data=report_text,
