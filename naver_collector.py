@@ -3,6 +3,7 @@ import json
 import re
 from datetime import datetime
 import xml.etree.ElementTree as ET
+import pandas as pd
 
 class NaverFinanceCollector:
     """
@@ -19,36 +20,101 @@ class NaverFinanceCollector:
         try:
             res = requests.get(url, headers=self.headers)
             data = res.json()
-            # 국내 주식 필드 추출
             item = data.get("result", {}).get("areas", [])[0].get("datas", [])[0]
             return {
                 "stock_name": item.get("nm"),
                 "close_price": str(item.get("nv")),
                 "fluctuation_rate": str(item.get("cr")),
-                "market_cap": "N/A",
             }
         except Exception as e:
             print(f"Error fetching basic info: {e}")
             return None
 
     def get_market_environment(self):
-        """지수 및 선물 정보 조회 (나스닥100 선물, 코스피200 선물 등)"""
-        # 나스닥 100 선물: NAS@NQX, 코스피 200: KOSPI200
-        url = "https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:NAS@NQX,SERVICE_INDEX:KOSPI200"
+        """지수 정보(나스닥, 코스피200 등) 조회"""
+        indices = {}
+        # 1. 코스피 200
+        try:
+            url = "https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:KPI200"
+            res = requests.get(url, headers=self.headers)
+            item = res.json()["result"]["areas"][0]["datas"][0]
+            indices["코스피200"] = {"price": str(item["nv"]), "change_rate": str(item["cr"])}
+        except: pass
+
+        # 2. 나스닥 (종합지수)
+        try:
+            url = "https://polling.finance.naver.com/api/realtime?query=SERVICE_WORLD:.IXIC"
+            res = requests.get(url, headers=self.headers)
+            item = res.json()["result"]["areas"][0]["datas"][0]
+            indices["나스닥"] = {"price": str(item["nv"]), "change_rate": str(item["cr"])}
+        except: pass
+            
+        return indices
+
+    def get_investor_data(self, stock_code):
+        """외인/기관/프로그램 순매수 데이터 스캔"""
+        from bs4 import BeautifulSoup
+        data = {"foreign_net_buy": "N/A", "institution_net_buy": "N/A", "program_net_buy": "N/A"}
+        
+        # 1. 외인/기관
+        try:
+            url = f"https://finance.naver.com/item/frgn.naver?code={stock_code}"
+            res = requests.get(url, headers=self.headers)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            rows = soup.select("table.type2 tr")
+            for row in rows:
+                cols = row.select("td")
+                if len(cols) >= 9:
+                    data["foreign_net_buy"] = cols[6].text.strip()
+                    data["institution_net_buy"] = cols[5].text.strip()
+                    break
+        except: pass
+
+        # 2. 프로그램
+        try:
+            url = f"https://finance.naver.com/item/sise.naver?code={stock_code}"
+            res = requests.get(url, headers=self.headers)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            prog_label = soup.find(string=re.compile("프로그램"))
+            if prog_label:
+                prog_val = prog_label.find_parent("tr").select("td")[-1]
+                data["program_net_buy"] = prog_val.text.strip()
+        except: pass
+
+        return data
+
+    def get_related_news(self, stock_code):
+        """종목 관련 뉴스 스크래핑 (최신 5건)"""
+        from bs4 import BeautifulSoup
+        news_list = []
+        # 메인 페이지의 뉴스 영역이 더 안정적임
+        url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
         try:
             res = requests.get(url, headers=self.headers)
-            data = res.json()
-            results = {}
-            for item in data.get("result", {}).get("areas", [])[0].get("datas", []):
-                sym = item.get("nm")
-                results[sym] = {
-                    "price": item.get("nv"),
-                    "change_rate": item.get("cr")
-                }
-            return results
-        except Exception as e:
-            print(f"Error fetching market environment: {e}")
-            return None
+            res.encoding = 'euc-kr'
+            soup = BeautifulSoup(res.text, 'html.parser')
+            # '뉴스' 섹션 내의 링크들 탐색
+            news_area = soup.find('div', class_='section news_area')
+            if news_area:
+                for a in news_area.select('li span a'):
+                    title = a.text.strip()
+                    if title:
+                        news_list.append({
+                            "title": title,
+                            "link": "https://finance.naver.com" + a['href']
+                        })
+            
+            # 만약 못 찾았다면 대안 셀렉터 (특징주 등)
+            if not news_list:
+                for a in soup.select('div.news_section ul li a'):
+                    title = a.text.strip()
+                    if title:
+                        news_list.append({
+                            "title": title,
+                            "link": "https://finance.naver.com" + a['href']
+                        })
+        except: pass
+        return news_list[:5]
 
     def get_minute_candles(self, stock_code, count=100):
         """분봉 데이터 조회 (XML API 활용)"""
@@ -59,66 +125,26 @@ class NaverFinanceCollector:
             candles = []
             for item in root.findall(".//item"):
                 data = item.get("data").split("|")
-                # data format: "시간|시가|고가|저가|종가|거래량"
-                # 'null' 또는 0인 경우 처리를 강화합니다.
                 def clean_int(val):
-                    if not val or val.lower() == 'null':
-                        return 0
+                    if not val or val.lower() == 'null': return 0
                     return int(val)
-
-                c = clean_int(data[4]) # 종가
+                c = clean_int(data[4])
                 o = clean_int(data[1])
                 h = clean_int(data[2])
                 l = clean_int(data[3])
                 v = clean_int(data[5])
-                
-                # 시/고/저가 가 0이면 종가로 대체 (일부 데이터 유실 대응)
                 if o == 0: o = c
                 if h == 0: h = c
                 if l == 0: l = c
-
                 candles.append({
                     "time": data[0],
                     "open": o,
                     "high": h,
                     "low": l,
                     "close": c,
-                    "volume": v
+                    "volume": v,
+                    "amount": c * v  # 거래대금 (종가 * 거래량 근사치)
                 })
             return candles
-        except Exception as e:
-            print(f"Error fetching minute candles: {e}")
+        except:
             return []
-
-    def get_investor_and_program(self, stock_code):
-        """외국인/기관/프로그램 수급 정보 스크래핑"""
-        url = f"https://finance.naver.com/item/frgn.naver?code={stock_code}"
-        try:
-            res = requests.get(url, headers=self.headers)
-            # HTML에서 프로그램 순매수 및 투자자 정보를 파싱 (간략화된 정규식 방식)
-            # 수치만 추출하기 위해 특정 패턴을 찾습니다.
-            html = res.text
-            
-            # 프로그램 순매수는 별도의 API나 더 정교한 파싱이 필요할 수 있으나, 
-            # 여기서는 공개된 정보를 최대한 탐색합니다.
-            # 실제 '프로그램 매매'는 다른 페이지에 있을 수 있어 보완이 필요할 수 있습니다.
-            
-            return {
-                "source_url": url,
-                "note": "프로그램 매매 및 상세 수급은 추가 스니펫 파싱이 필요할 수 있음"
-            }
-        except Exception as e:
-            print(f"Error fetching investor info: {e}")
-            return None
-
-if __name__ == "__main__":
-    collector = NaverFinanceCollector()
-    print("--- Basic Info (Samsung) ---")
-    print(collector.get_basic_info("005930"))
-    
-    print("\n--- Market Environment ---")
-    print(collector.get_market_environment())
-    
-    print("\n--- Minute Candles (Top 5) ---")
-    candles = collector.get_minute_candles("005930", count=5)
-    print(json.dumps(candles, indent=2))

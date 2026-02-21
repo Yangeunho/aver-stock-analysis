@@ -27,6 +27,8 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
             collector = NaverFinanceCollector()
             basic_info = collector.get_basic_info(stock_code)
             market_env = collector.get_market_environment()
+            investor_data = collector.get_investor_data(stock_code)
+            news_data = collector.get_related_news(stock_code)
             candles = collector.get_minute_candles(stock_code, count=candle_count)
 
             if not basic_info or not candles:
@@ -48,24 +50,38 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
                             "stck_oprc": str(c['open']),
                             "stck_hgpr": str(c['high']),
                             "stck_lwpr": str(c['low']),
-                            "cntg_vol": str(c['volume'])
+                            "cntg_vol": str(c['volume']),
+                            "cntg_amt": str(c.get('amount', 0)) # 거래대금 추가
                         } for c in candles
                     ]},
                     basic_info['stock_name'],
                     stock_code
                 )
+                
+                # 가공 데이터 추가
+                ai_optimized_candles["investor_flow"] = investor_data
+                ai_optimized_candles["latest_news"] = [n['title'] for n in news_data]
 
                 # 보고서 텍스트 생성
-                nasdaq = market_env.get("나스닥100 선물", {"price": "N/A", "change_rate": "0.0"})
+                nasdaq = market_env.get("나스닥", {"price": "N/A", "change_rate": "0.0"})
                 kospi200 = market_env.get("코스피200", {"price": "N/A", "change_rate": "0.0"})
                 current_p = int(basic_info['close_price'].replace(',','')) if basic_info['close_price'] else 0
                 diff_from_floor = ((current_p - floor_price) / floor_price * 100) if floor_price > 0 else 0
 
+                news_text = "\n".join([f"- {n['title']}" for n in news_data])
                 report_text = f"""# **📋 주도주 종가 배팅(종배) 분석 보고서**
 0. 대상 종목: {basic_info['stock_name']} ({stock_code})
 1. 현재가: {basic_info['close_price']}원 ({basic_info['fluctuation_rate']}%)
-2. 시장 환경: 나스닥100 {nasdaq['price']}({nasdaq['change_rate']}%), 코스피200 {kospi200['price']}({kospi200['change_rate']}%)
-3. 최저 방어 가격: {floor_price}원 (현재가 대비 {diff_from_floor:.2f}% 차이)
+2. 시장 환경:
+   - 나스닥: {nasdaq['price']} ({nasdaq['change_rate']}%)
+   - 코스피200: {kospi200['price']} ({kospi200['change_rate']}%)
+3. 수급 상황:
+   - 외인 순매수: {investor_data['foreign_net_buy']}
+   - 기관 순매수: {investor_data['institution_net_buy']}
+   - 프로그램: {investor_data['program_net_buy']}
+4. 최신 뉴스:
+{news_text}
+5. 최저 방어 가격: {floor_price}원 (현재가 대비 {diff_from_floor:.2f}% 차이)
 ---
 [AI 분석용 데이터]
 {json.dumps(ai_optimized_candles, ensure_ascii=False)}
@@ -73,11 +89,22 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
 
                 # 결과 화면 표시
                 st.subheader("📊 분석 요약")
-                col1, col2 = st.columns(2)
-                col1.metric("현재가", f"{basic_info['close_price']}원", basic_info['fluctuation_rate'] + "%")
-                col2.metric("방어 가격(Floor)", f"{floor_price}원", f"{diff_from_floor:.2f}%")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("현재가", f"{basic_info['close_price']}원", basic_info['fluctuation_rate'] + "%")
+                m2.metric("방어 가격(Floor)", f"{floor_price}원", f"{diff_from_floor:.2f}%")
+                m3.metric("외인 수급", investor_data['foreign_net_buy'])
 
-                st.text_area("보고서 전문 (제미나이 복사용)", report_text, height=200)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("🏦 수급 현황")
+                    st.write(f"**기관:** {investor_data['institution_net_buy']}")
+                    st.write(f"**프로그램:** {investor_data['program_net_buy']}")
+                with col2:
+                    st.subheader("📰 최신 뉴스")
+                    for n in news_data[:3]:
+                        st.write(f"[{n['title']}]({n['link']})")
+
+                st.text_area("보고서 전문 (제미나이 복사용)", report_text, height=250)
 
                 # 파일 다운로드 버튼 (핸드폰 첨부용)
                 file_name = f"analysis_{stock_code}_{datetime.now().strftime('%H%M%S')}.txt"
