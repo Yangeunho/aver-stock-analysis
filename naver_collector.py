@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 import xml.etree.ElementTree as ET
 import pandas as pd
+from bs4 import BeautifulSoup
 
 class NaverFinanceCollector:
     """
@@ -83,7 +84,6 @@ class NaverFinanceCollector:
 
     def get_investor_data(self, stock_code):
         """외인/기관/프로그램 순매수 데이터 스캔"""
-        from bs4 import BeautifulSoup
         data = {"foreign_net_buy": "N/A", "institution_net_buy": "N/A", "program_net_buy": "N/A"}
         
         # 1. 외인/기관
@@ -117,7 +117,6 @@ class NaverFinanceCollector:
 
     def get_related_news(self, stock_code):
         """종목 관련 뉴스 스크래핑 (최신 5건)"""
-        from bs4 import BeautifulSoup
         news_list = []
         url = f"https://finance.naver.com/item/main.naver?code={stock_code}"
         try:
@@ -152,11 +151,17 @@ class NaverFinanceCollector:
             res = requests.get(url, headers=self.headers)
             root = ET.fromstring(res.text)
             candles = []
+            
+            # 이전 누적 거래량 및 날짜 초기화 (명시적 사용)
+            prev_v = 0
+            prev_date = None
+            
+            def clean_int(val):
+                if not val or val.lower() == 'null': return 0
+                return int(val)
+            
             for item in root.findall(".//item"):
                 data = item.get("data").split("|")
-                def clean_int(val):
-                    if not val or val.lower() == 'null': return 0
-                    return int(val)
                 c = clean_int(data[4])
                 o = clean_int(data[1])
                 h = clean_int(data[2])
@@ -166,7 +171,7 @@ class NaverFinanceCollector:
                 # 순 거래량 계산 (누적 -> 분당 순증가분)
                 # 이전 데이터와 같은 날짜인 경우에만 차이를 구함 (날짜 바뀌면 누적치가 리셋됨)
                 curr_date = data[0][:8]
-                if 'prev_v' in locals() and 'prev_date' in locals() and curr_date == prev_date:
+                if prev_date is not None and curr_date == prev_date:
                     v_pure = max(0, v_raw - prev_v)
                 else:
                     v_pure = v_raw
