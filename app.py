@@ -41,7 +41,7 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
                 ai_optimized_candles = formatter.format_minute_data(
                     {"list": [
                         {
-                            "stck_cntg_hour": c['time'][-6:],
+                            "stck_cntg_hour": c['time'],
                             "stck_prpr": str(c['close']),
                             "stck_oprc": str(c['open']),
                             "stck_hgpr": str(c['high']),
