@@ -59,8 +59,19 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
                 ai_optimized_candles["latest_news"] = [n['title'] for n in news_data]
 
                 # 시장 환경 및 뉴스 텍스트 준비
-                nasdaq = market_env.get("나스닥", {"price": "N/A", "change_rate": "0.0"})
+                nasdaq_f = market_env.get("나스닥100선물", {"price": "N/A", "change_rate": "0.0"})
+                snp500_f = market_env.get("S&P500선물", {"price": "N/A", "change_rate": "0.0"})
+                vix = market_env.get("VIX공포지수", {"price": "N/A", "change_rate": "0.0"})
+                us10y = market_env.get("미국채10년금리", {"price": "N/A", "change_rate": "0.0"})
                 kospi200 = market_env.get("코스피200", {"price": "N/A", "change_rate": "0.0"})
+                
+                market_summary = f"""
+- 나스닥100선물: {nasdaq_f['price']} ({nasdaq_f['change_rate']}%)
+- S&P500선물: {snp500_f['price']} ({snp500_f['change_rate']}%)
+- VIX공포지수: {vix['price']} ({vix['change_rate']}%)
+- 미국채10년금리: {us10y['price']} ({us10y['change_rate']}%)
+- 코스피200: {kospi200['price']} ({kospi200['change_rate']}%)
+"""
                 news_text = "\n".join([f"- {n['title']}" for n in news_data])
 
                 # 사용자 정의 지침서 및 AI 출력 가이드 (전체 원문 유지)
@@ -105,7 +116,7 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
 [분석 대상 데이터]
 - 종목: {basic_info['stock_name']} ({stock_code})
 - 현재가: {basic_info['close_price']}원 ({basic_info['fluctuation_rate']}%)
-- 시장: 나스닥 {nasdaq['price']}({nasdaq['change_rate']}%), 코스피200 {kospi200['price']}({kospi200['change_rate']}%)
+- 시장 상황: {market_summary}
 - 수급: 외인 {investor_data['foreign_net_buy']}, 기관 {investor_data['institution_net_buy']}, 프로그램 {investor_data['program_net_buy']}
 - 뉴스:
 {news_text}

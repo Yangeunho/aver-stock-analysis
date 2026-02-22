@@ -31,23 +31,53 @@ class NaverFinanceCollector:
             return None
 
     def get_market_environment(self):
-        """지수 정보(나스닥, 코스피200 등) 조회"""
+        """지수 정보(나스닥 선물, VIX, 국채금리 등) 조회"""
         indices = {}
-        # 1. 코스피 200
-        try:
-            url = "https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:KPI200"
-            res = requests.get(url, headers=self.headers)
-            item = res.json()["result"]["areas"][0]["datas"][0]
-            indices["코스피200"] = {"price": str(item["nv"]), "change_rate": str(item["cr"])}
-        except: pass
+        
+        # 수집 대상 목록 (이름: (심볼, 서비스타입))
+        targets = {
+            "코스피200": ("KPI200", "SERVICE_INDEX"),
+            "나스닥100선물": ("NAS@NQcv1", "SERVICE_WORLD"),
+            "S&P500선물": ("SPI@SPcv1", "SERVICE_WORLD"),
+            "VIX공포지수": (".VIX", "SERVICE_WORLD"),
+            "미국채10년금리": ("US10Y", "SERVICE_WORLD"),
+            "나스닥지수": (".IXIC", "SERVICE_WORLD")
+        }
 
-        # 2. 나스닥 (종합지수)
-        try:
-            url = "https://polling.finance.naver.com/api/realtime?query=SERVICE_WORLD:.IXIC"
-            res = requests.get(url, headers=self.headers)
-            item = res.json()["result"]["areas"][0]["datas"][0]
-            indices["나스닥"] = {"price": str(item["nv"]), "change_rate": str(item["cr"])}
-        except: pass
+        for name, (symbol, service) in targets.items():
+            try:
+                # 1. 실시간 API 시도
+                url = f"https://polling.finance.naver.com/api/realtime?query={service}:{symbol}"
+                res = requests.get(url, headers=self.headers, timeout=5)
+                res_json = res.json()
+                
+                # 데이터 존재 여부 체크
+                areas = res_json.get("result", {}).get("areas", [])
+                if areas and len(areas) > 0:
+                    data = areas[0].get("datas", [])[0]
+                    if data.get("nv") and data.get("nv") != 0:
+                        indices[name] = {"price": str(data["nv"]), "change_rate": str(data["cr"])}
+                        continue
+
+                # 2. API 데이터가 없거나 실패 시 웹 크롤링 시도 (해외 지표)
+                if service == "SERVICE_WORLD":
+                    url = f"https://finance.naver.com/world/sise.naver?symbol={symbol}"
+                    res = requests.get(url, headers=self.headers, timeout=5)
+                    price_match = re.search(r'item_chart_price">([\d,.]+)', res.text)
+                    rate_match = re.search(r'rate">([\d.+-]+)%', res.text)
+                    if price_match:
+                        indices[name] = {
+                            "price": price_match.group(1).replace(",", ""),
+                            "change_rate": rate_match.group(1) if rate_match else "0.0"
+                        }
+            except: pass
+            
+            if name not in indices:
+                # 현재 시간이 일요일인 경우 휴장 메시지 우선
+                if datetime.now().weekday() == 6: # Sunday
+                    indices[name] = {"price": "시장휴장", "change_rate": "0.0"}
+                else:
+                    indices[name] = {"price": "N/A", "change_rate": "0.0"}
             
         return indices
 
