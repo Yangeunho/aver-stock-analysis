@@ -14,7 +14,7 @@ st.markdown("종목 코드를 입력하여 데이터 수집 및 AI 분석용 파
 # 섹션 1: 설정 및 입력
 with st.sidebar:
     st.header("설정")
-    candle_count = st.slider("수집할 분봉 개수", 50, 1500, 1500)
+    candle_count = st.slider("수집할 분봉 개수", 50, 2400, 1500)
     st.info("Tip: 핸드폰에서 접속 중이라면 PC의 IP 주소로 접속하세요.")
 
 stock_code = st.text_input("종목 코드 입력 (예: 032820, 005930)", placeholder="6자리 숫자 입력")

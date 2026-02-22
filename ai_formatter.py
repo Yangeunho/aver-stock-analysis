@@ -18,7 +18,7 @@ class AiFormatter:
         
         # 1. 컬럼 정의 (LLM이 이해하기 쉬운 명칭)
         # 키움 필드명: stck_cntg_hour(체결시간), stck_prpr(현재가), stck_oprc(시가), stck_hgpr(고가), stck_lwpr(저가), cntg_vol(체결량)
-        columns = ["time", "close", "open", "high", "low", "volume"]
+        columns = ["time", "close", "open", "high", "low", "volume", "amount"]
         
         # 2. 데이터 변환 및 기초 계산
         formatted_data = []
@@ -32,7 +32,8 @@ class AiFormatter:
                 int(item.get('stck_oprc', 0)),
                 int(item.get('stck_hgpr', 0)),
                 int(item.get('stck_lwpr', 0)),
-                int(item.get('cntg_vol', 0))
+                int(item.get('cntg_vol', 0)),
+                int(item.get('cntg_amt', 0))
             ]
             formatted_data.append(row)
             prices.append(row[1]) # 종가 기준
