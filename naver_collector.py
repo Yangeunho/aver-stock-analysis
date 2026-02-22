@@ -115,7 +115,7 @@ class NaverFinanceCollector:
         except: pass
         return news_list[:5]
 
-    def get_minute_candles(self, stock_code, count=100):
+    def get_minute_candles(self, stock_code, count=1500):
         """분봉 데이터 조회 (XML API 활용)"""
         url = f"https://fchart.stock.naver.com/sise.nhn?symbol={stock_code}&timeframe=minute&count={count}&requestType=0"
         try:
@@ -144,6 +144,6 @@ class NaverFinanceCollector:
                     "volume": v,
                     "amount": c * v  # 거래대금 (종가 * 거래량 근사치)
                 })
-            return candles
+            return candles[-count:]
         except:
             return []
