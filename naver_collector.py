@@ -131,7 +131,19 @@ class NaverFinanceCollector:
                 o = clean_int(data[1])
                 h = clean_int(data[2])
                 l = clean_int(data[3])
-                v = clean_int(data[5])
+                v_raw = clean_int(data[5])
+                
+                # 순 거래량 계산 (누적 -> 분당 순증가분)
+                # 이전 데이터와 같은 날짜인 경우에만 차이를 구함 (날짜 바뀌면 누적치가 리셋됨)
+                curr_date = data[0][:8]
+                if 'prev_v' in locals() and 'prev_date' in locals() and curr_date == prev_date:
+                    v_pure = max(0, v_raw - prev_v)
+                else:
+                    v_pure = v_raw
+                
+                prev_v = v_raw
+                prev_date = curr_date
+
                 if o == 0: o = c
                 if h == 0: h = c
                 if l == 0: l = c
@@ -141,8 +153,8 @@ class NaverFinanceCollector:
                     "high": h,
                     "low": l,
                     "close": c,
-                    "volume": v,
-                    "amount": c * v  # 거래대금 (종가 * 거래량 근사치)
+                    "volume": v_pure,
+                    "amount": c * v_pure  # 실제 분당 순 거래대금
                 })
             return candles[-count:]
         except:
