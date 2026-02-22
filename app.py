@@ -39,17 +39,7 @@ if st.button("🚀 데이터 수집 및 보고서 생성"):
                 # AI 포맷팅
                 formatter = AiFormatter()
                 ai_optimized_candles = formatter.format_minute_data(
-                    {"list": [
-                        {
-                            "stck_cntg_hour": c['time'],
-                            "stck_prpr": str(c['close']),
-                            "stck_oprc": str(c['open']),
-                            "stck_hgpr": str(c['high']),
-                            "stck_lwpr": str(c['low']),
-                            "cntg_vol": str(c['volume']),
-                            "cntg_amt": str(c.get('amount', 0)) # 거래대금 추가
-                        } for c in candles
-                    ]},
+                    {"list": candles},
                     basic_info['stock_name'],
                     stock_code
                 )
