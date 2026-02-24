@@ -5,6 +5,7 @@ from datetime import datetime
 import xml.etree.ElementTree as ET
 import pandas as pd
 from bs4 import BeautifulSoup
+import yfinance as yf
 
 class NaverFinanceCollector:
     """
@@ -60,7 +61,38 @@ class NaverFinanceCollector:
                         indices[name] = {"price": str(data["nv"]), "change_rate": str(data["cr"])}
                         continue
 
-                # 2. API 데이터가 없거나 실패 시 웹 크롤링 시도 (해외 지표)
+                # 2. API 데이터가 없거나 실패 시 yfinance (해외 지표)
+                if service == "SERVICE_WORLD":
+                    yf_symbols = {
+                        "나스닥100선물": "NQ=F",
+                        "S&P500선물": "ES=F",
+                        "VIX공포지수": "^VIX",
+                        "미국채10년금리": "^TNX",
+                        "나스닥지수": "^IXIC"
+                    }
+                    yf_symbol = yf_symbols.get(name)
+                    if yf_symbol:
+                        ticker = yf.Ticker(yf_symbol)
+                        # fast_info 대신 history를 사용하여 안정적으로 데이터 확보
+                        hist = ticker.history(period="2d")
+                        if not hist.empty:
+                            latest = hist.iloc[-1]
+                            price = latest['Close']
+                            
+                            # 등락률 계산
+                            if len(hist) > 1:
+                                prev_close = hist.iloc[-2]['Close']
+                                change_rate = ((price - prev_close) / prev_close) * 100
+                            else:
+                                change_rate = 0.0
+                                
+                            indices[name] = {
+                                "price": str(round(price, 2)),
+                                "change_rate": str(round(change_rate, 2))
+                            }
+                            continue
+
+                # 3. yfinance도 실패 시 웹 크롤링 시도 (네이버)
                 if service == "SERVICE_WORLD":
                     url = f"https://finance.naver.com/world/sise.naver?symbol={symbol}"
                     res = requests.get(url, headers=self.headers, timeout=5)
@@ -71,7 +103,9 @@ class NaverFinanceCollector:
                             "price": price_match.group(1).replace(",", ""),
                             "change_rate": rate_match.group(1) if rate_match else "0.0"
                         }
-            except: pass
+            except Exception as e:
+                print(f"Error fetching {name} ({symbol}): {e}")
+                pass
             
             if name not in indices:
                 # 현재 시간이 일요일인 경우 휴장 메시지 우선
